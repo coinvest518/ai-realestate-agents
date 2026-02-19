@@ -149,11 +149,10 @@ Be friendly, concise, and helpful.{user_context}"""
             payload = {
                 "model": NEBIUS_MODEL.replace("nebius/", ""),
                 "messages": messages,
-                "tools": TOOLS,
-                "tool_choice": "auto",  # Let LLM decide
                 "temperature": 0.7,
                 "max_tokens": 512
             }
+            
             response = client.post(
                 f"{NEBIUS_BASE_URL}/chat/completions",
                 headers={
