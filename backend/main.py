@@ -110,21 +110,19 @@ async def chat_endpoint(request: Request):
     body = await request.json()
     prompt = (body.get("prompt") or body.get("message") or "").strip()
     conversation_history = body.get("history", [])
+    user_id = request.headers.get("x-user-id")
     
     if not prompt:
         raise HTTPException(status_code=400, detail="Missing prompt")
     
-    # Use Nebius function calling agent
     try:
         from nebius_agent import chat_with_nebius_agent
-        response = chat_with_nebius_agent(prompt, conversation_history)
+        response = chat_with_nebius_agent(prompt, conversation_history, user_id=user_id)
         return {"response": response}
     except Exception as e:
         print(f"/api/chat: Nebius agent error: {e}")
-        # Fallback to simple response
         pass
     
-    # Fallback: Simple pattern matching
     low = prompt.lower()
     if re.match(r'^(hi|hello|hey|yo|sup|good\s+morning|good\s+afternoon|good\s+evening)\b', low):
         return {"response": "Hi — how can I help you today?"}
@@ -269,11 +267,23 @@ def start_scrape(body: ScrapeRequest, use_dataset: bool = False):
         try:
             host = u.lower()
             dataset_id = SETTINGS.get("bright_data_realtor_dataset_id")
+            
+            # Check cache first
+            from supabase_helper import get_cached_bright_data, cache_bright_data_result
+            cached = get_cached_bright_data(u)
+            if cached:
+                _log(tid, "Found cached result")
+                TASKS[tid]['result'] = {"success": True, "data": cached, "source": "cache"}
+                TASKS[tid]["status"] = "finished"
+                return
+            
             if "realtor.com" in host and (use_dataset_flag or SETTINGS.get("use_dataset_for_realtor")) and dataset_id:
                 _log(tid, f"Triggering Bright Data dataset {dataset_id} for URL")
                 resp = _brightdata_trigger_dataset(dataset_id, [{"url": u}], params={"type": "collect", "discover_by": "url"})
-                TASKS[tid]["result"] = {"success": True, "data": resp, "source": "brightdata_dataset"}
-                _log(tid, "Dataset run started")
+                result_data = {"success": True, "data": resp, "source": "brightdata_dataset"}
+                cache_bright_data_result(u, resp)
+                TASKS[tid]["result"] = result_data
+                _log(tid, "Dataset run started and cached")
                 TASKS[tid]["status"] = "finished"
                 return
 
@@ -303,8 +313,9 @@ def start_scrape(body: ScrapeRequest, use_dataset: bool = False):
             imgs = [x for x in imgs if not (x in seen or seen.add(x))]
             if imgs and not data.get('image_urls'):
                 data['image_urls'] = imgs
+            cache_bright_data_result(u, data)
             TASKS[tid]['result'] = {"success": True, "data": data, "raw_preview": text[:500]}
-            _log(tid, 'Scrape result ready')
+            _log(tid, 'Scrape result ready and cached')
             TASKS[tid]["status"] = "finished"
         except Exception as e:
             TASKS[tid]["status"] = "failed"
@@ -568,6 +579,38 @@ def apify_task_last_run(task_id: str):
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text or str(e))
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+# Market data endpoint - fetch sample properties
+@app.get("/api/market/properties")
+def get_market_properties(limit: int = 20, offset: int = 0):
+    """Fetch market properties from JSON file or cache"""
+    # Load from JSON file first
+    json_path = os.path.join(os.path.dirname(__file__), "albany_properties.json")
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r') as f:
+                properties = json.load(f)
+            return {"properties": properties[offset:offset+limit], "total": len(properties), "limit": limit, "offset": offset}
+        except Exception as e:
+            print(f"Error loading JSON: {e}")
+    
+    # Fallback to Supabase
+    from supabase_helper import get_supabase
+    supabase = get_supabase()
+    if not supabase:
+        return {"properties": [], "total": 0}
+    
+    try:
+        response = supabase.table('bright_data_cache').select('property_url, property_data, cached_at').gt('expires_at', 'now()').order('cached_at', desc=True).range(offset, offset + limit - 1).execute()
+        properties = []
+        for row in response.data:
+            data = row.get('property_data', {})
+            properties.append({'id': row.get('property_url', '').split('/')[-1], 'url': row.get('property_url'), 'address': data.get('address', 'N/A'), 'city': data.get('city', ''), 'state': data.get('state', ''), 'zip': data.get('zip', ''), 'price': data.get('price'), 'beds': data.get('beds'), 'baths': data.get('baths'), 'sqft': data.get('sqft') or data.get('square_feet'), 'image_urls': data.get('image_urls', []), 'description': data.get('description', ''), 'source': row.get('property_data', {}).get('source', 'unknown'), 'cached_at': row.get('cached_at')})
+        return {"properties": properties, "total": len(properties), "limit": limit, "offset": offset}
+    except Exception as e:
+        print(f"Error: {e}")
+        return {"properties": [], "total": 0}
 
 
 @app.get("/")

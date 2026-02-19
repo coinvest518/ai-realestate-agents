@@ -17,6 +17,24 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_user_history",
+            "description": "Get user's recent searches and scrapes. Use this to reference what the user has searched for before.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "history_type": {
+                        "type": "string",
+                        "enum": ["searches", "scrapes", "all"],
+                        "description": "Type of history to retrieve"
+                    }
+                },
+                "required": ["history_type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "people_search",
             "description": "Search for a person's contact information (phone, email, address) using Apify Skip Trace. Use this when user asks to find someone or search for contact info.",
             "parameters": {
@@ -78,7 +96,7 @@ TOOLS = [
 ]
 
 
-def call_nebius_with_tools(user_message: str, conversation_history: List[Dict] = None) -> Dict[str, Any]:
+def call_nebius_with_tools(user_message: str, conversation_history: List[Dict] = None, user_id: str = None) -> Dict[str, Any]:
     """
     Call Nebius LLM with function calling support.
     LLM decides whether to use tools or just chat.
@@ -86,16 +104,31 @@ def call_nebius_with_tools(user_message: str, conversation_history: List[Dict] =
     if not NEBIUS_API_KEY:
         return {"error": "NEBIUS_API_KEY not configured"}
     
+    # Build user context from history
+    user_context = ""
+    if user_id:
+        try:
+            from supabase_helper import get_user_search_history, get_user_scrape_history
+            searches = get_user_search_history(user_id, limit=3)
+            scrapes = get_user_scrape_history(user_id, limit=3)
+            
+            if searches:
+                user_context += "\n\nRecent searches: " + ", ".join([s['search_query'] for s in searches])
+            if scrapes:
+                user_context += "\n\nRecent properties: " + ", ".join([s['property_url'].split('/')[-1] for s in scrapes[:3]])
+        except Exception as e:
+            print(f"Error fetching user history: {e}")
+    
     # Build messages
     messages = []
     if conversation_history:
-        messages.extend(conversation_history[-5:])  # Last 5 messages for context
+        messages.extend(conversation_history[-5:])
     messages.append({"role": "user", "content": user_message})
     
-    # System prompt
+    # System prompt with user context
     system_message = {
         "role": "system",
-        "content": """You are a helpful real estate assistant. You can chat normally OR use tools when needed.
+        "content": f"""You are a helpful real estate assistant. You can chat normally OR use tools when needed.
 
 IMPORTANT: Only use tools when the user explicitly requests an action:
 - "Find John Doe" → Use people_search
@@ -107,7 +140,7 @@ For conversational queries, respond naturally WITHOUT using tools:
 - "What can you do?" → Explain capabilities
 - "Tell me about real estate" → Have a conversation
 
-Be friendly, concise, and helpful."""
+Be friendly, concise, and helpful.{user_context}"""
     }
     messages.insert(0, system_message)
     
@@ -168,8 +201,35 @@ Be friendly, concise, and helpful."""
         return {"error": str(e)}
 
 
-def execute_tool(function_name: str, arguments: Dict[str, Any]) -> str:
+def execute_tool(function_name: str, arguments: Dict[str, Any], user_id: str = None) -> str:
     """Execute the tool function and return results."""
+    if function_name == "get_user_history":
+        if not user_id:
+            return "No user context available"
+        try:
+            from supabase_helper import get_user_search_history, get_user_scrape_history
+            history_type = arguments.get("history_type", "all")
+            result = ""
+            
+            if history_type in ["searches", "all"]:
+                searches = get_user_search_history(user_id, limit=5)
+                if searches:
+                    result += "Recent Searches:\n"
+                    for s in searches:
+                        result += f"- {s['search_query']}: {s['result_count']} results\n"
+            
+            if history_type in ["scrapes", "all"]:
+                scrapes = get_user_scrape_history(user_id, limit=5)
+                if scrapes:
+                    result += "\nRecent Properties:\n"
+                    for s in scrapes:
+                        url = s['property_url'].split('/')[-1]
+                        result += f"- {url}\n"
+            
+            return result or "No history found"
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
     if function_name == "people_search":
         try:
             with httpx.Client(timeout=120.0) as client:
@@ -214,12 +274,11 @@ def execute_tool(function_name: str, arguments: Dict[str, Any]) -> str:
     return "Unknown tool"
 
 
-def chat_with_nebius_agent(user_message: str, conversation_history: List[Dict] = None) -> str:
+def chat_with_nebius_agent(user_message: str, conversation_history: List[Dict] = None, user_id: str = None) -> str:
     """
-    Main entry point: Chat with Nebius agent that intelligently uses tools.
+    Main entry point: Chat with Nebius agent that has user context.
     """
-    # Call Nebius with tools
-    response = call_nebius_with_tools(user_message, conversation_history)
+    response = call_nebius_with_tools(user_message, conversation_history, user_id=user_id)
     
     if response.get("error"):
         return f"Error: {response['error']}"
@@ -230,7 +289,7 @@ def chat_with_nebius_agent(user_message: str, conversation_history: List[Dict] =
         arguments = response["arguments"]
         
         # Execute the tool
-        tool_result = execute_tool(function_name, arguments)
+        tool_result = execute_tool(function_name, arguments, user_id=user_id)
         
         return f"I'll help you with that.\n\n{tool_result}"
     

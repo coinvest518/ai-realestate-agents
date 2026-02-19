@@ -52,7 +52,7 @@ def build_scraper_agent(mcp_tools, llm):
         ),
         tools=mcp_tools,
         llm=llm,
-        max_iter=5,
+        max_iter=15,
         verbose=True,
     )
 

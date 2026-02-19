@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -68,6 +69,7 @@ function isApifyIntent(text: string) {
 
 export default function ChatPanel() {
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+  const { user } = useAuth()
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState("")
   const [chatLoading, setChatLoading] = useState(false)
@@ -222,9 +224,13 @@ export default function ChatPanel() {
 
     // Fallback — general LLM chat
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (user?.id) {
+        headers["x-user-id"] = user.id
+      }
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ prompt: text }),
       })
       if (!res.ok) throw new Error(await res.text())

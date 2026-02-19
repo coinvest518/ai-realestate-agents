@@ -168,3 +168,42 @@ def get_user_chat_history(user_id: str, limit: int = 50):
     except Exception as e:
         print(f"Error getting chat history: {e}")
         return []
+
+
+def cache_bright_data_result(property_url: str, property_data: dict) -> bool:
+    """Cache Bright Data marketplace result"""
+    supabase = get_supabase()
+    if not supabase:
+        return False
+    
+    try:
+        supabase.table('bright_data_cache').upsert({
+            'property_url': property_url,
+            'property_data': property_data,
+            'source': 'bright_data_marketplace'
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"Error caching Bright Data result: {e}")
+        return False
+
+
+def get_cached_bright_data(property_url: str) -> Optional[Dict]:
+    """Get cached Bright Data result if not expired"""
+    supabase = get_supabase()
+    if not supabase:
+        return None
+    
+    try:
+        response = supabase.table('bright_data_cache')\
+            .select('property_data')\
+            .eq('property_url', property_url)\
+            .gt('expires_at', 'now()')\
+            .execute()
+        
+        if response.data:
+            return response.data[0]['property_data']
+        return None
+    except Exception as e:
+        print(f"Error getting cached Bright Data: {e}")
+        return None
