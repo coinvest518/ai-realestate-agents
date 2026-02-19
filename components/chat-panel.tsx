@@ -113,8 +113,8 @@ export default function ChatPanel() {
     if (greetings.includes(lower)) return null
 
     // Remove common search prefixes and filler words
-    let cleanText = t.replace(/^(and\s+r\s+|find|search|look up|get|skip trace|trace)\s+/i, '').trim()
-    cleanText = cleanText.replace(/^(and\s+r\s+|find|search|look up|get|skip trace|trace)\s+/i, '').trim()
+    let cleanText = t.replace(/^(find|search|look\s+up|get|skip\s+trace|trace|for)\s+/i, '').trim()
+    cleanText = cleanText.replace(/^(find|search|look\s+up|get|skip\s+trace|trace|for)\s+/i, '').trim()
     
     // Extract limit if present
     const limitMatch = cleanText.match(/\s+limit\s+(\d+)$/i)
@@ -282,15 +282,15 @@ export default function ChatPanel() {
             if (resData && Array.isArray(resData.items)) items = resData.items
             if (items && items.length > 0) {
               const formatted = items.map((p, idx) => {
-                const name = `${p['First Name'] || ''} ${p['Last Name'] || ''}`.trim()
+                const name = `${p['First Name'] || ''} ${p['Last Name'] || ''}`.trim() || 'Person Not Found'
                 const age = p['Age'] || 'N/A'
                 const location = `${p['City'] || ''}, ${p['State'] || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || 'N/A'
-                const address = p['Address'] || 'N/A'
+                const address = p['Street Address'] || p['Address'] || 'N/A'
                 const phones = [p['Phone-1'], p['Phone-2'], p['Phone-3']].filter(Boolean).join(', ') || 'N/A'
                 const emails = [p['Email-1'], p['Email-2']].filter(Boolean).join(', ') || 'N/A'
                 return `**Person ${idx + 1}:**\n- Name: ${name}\n- Age: ${age}\n- Location: ${location}\n- Address: ${address}\n- Phones: ${phones}\n- Emails: ${emails}`
               }).join('\n\n')
-              setChatMessages((prev) => [...prev, { role: 'assistant', content: formatted, data: { items, dataset_id: resData.dataset_id } }])
+              setChatMessages((prev) => [...prev, { role: 'assistant', content: formatted, data: { items, dataset_id: resData.dataset_id }, expanded: true }])
             } else {
               setChatMessages((prev) => [...prev, { role: 'assistant', content: `No results from Apify. Trying Tavily web search...` }])
               runTavilySearchFallback(name, limit)
@@ -395,7 +395,10 @@ export default function ChatPanel() {
 
       // If run-sync-get-dataset-items used, response likely contains items array
       if (data && data.items) {
-        setChatMessages((prev) => [...prev, { role: 'assistant', content: JSON.stringify(data.items, null, 2), data }])
+        const formatted = data.items.map((item: any, idx: number) => 
+          `**Result ${idx + 1}:**\n${Object.entries(item).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`
+        ).join('\n\n')
+        setChatMessages((prev) => [...prev, { role: 'assistant', content: formatted, data, expanded: true }])
         return data
       }
 
@@ -408,7 +411,10 @@ export default function ChatPanel() {
           const itemsRes = await fetch(`${API_BASE}/api/apify/run/${runId}/dataset`)
           if (itemsRes.ok) {
             const items = await itemsRes.json()
-            setChatMessages((prev) => [...prev, { role: 'assistant', content: JSON.stringify(items.items || items, null, 2), data: items }])
+            const formatted = (items.items || []).map((item: any, idx: number) => 
+              `**Result ${idx + 1}:**\n${Object.entries(item).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`
+            ).join('\n\n')
+            setChatMessages((prev) => [...prev, { role: 'assistant', content: formatted, data: items, expanded: true }])
             return items
           }
         }
@@ -470,7 +476,15 @@ export default function ChatPanel() {
           const payload = JSON.parse(ev.data)
           const resultObj = payload.result || null
           if (resultObj && resultObj.success) {
-            setChatMessages((prev) => [...prev, { role: "assistant", content: JSON.stringify(resultObj.data, null, 2), data: resultObj }])
+            const data = resultObj.data
+            // Format property data nicely
+            const formatted = Object.entries(data || {}).map(([key, value]) => {
+              if (key === 'image_urls' && Array.isArray(value)) return `**${key}:** ${value.length} images`
+              if (Array.isArray(value)) return `**${key}:** ${value.join(', ')}`
+              if (typeof value === 'object') return `**${key}:** ${JSON.stringify(value)}`
+              return `**${key}:** ${value}`
+            }).join('\n')
+            setChatMessages((prev) => [...prev, { role: "assistant", content: formatted, data: resultObj, expanded: true }])
           } else if (resultObj) {
             setChatMessages((prev) => [...prev, { role: "assistant", content: `Scrape failed: ${resultObj.error || 'unknown'}` }])
           }
