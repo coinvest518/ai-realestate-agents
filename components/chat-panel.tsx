@@ -67,11 +67,12 @@ function isApifyIntent(text: string) {
 }
 
 export default function ChatPanel() {
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState("")
   const [chatLoading, setChatLoading] = useState(false)
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
+  const esRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
     const c = chatContainerRef.current
@@ -80,6 +81,14 @@ export default function ChatPanel() {
     const shouldAutoScroll = distanceFromBottom < 120
     if (shouldAutoScroll) c.scrollTo({ top: c.scrollHeight, behavior: "smooth" })
   }, [chatMessages])
+
+  useEffect(() => {
+    return () => {
+      if (esRef.current) {
+        esRef.current.close()
+      }
+    }
+  }, [])
 
   function parsePeopleSearchIntent(text: string): { name: string; limit: number } | null {
     const t = text.trim()
@@ -248,11 +257,14 @@ export default function ChatPanel() {
       const { task_id } = await startRes.json()
 
       const es = new EventSource(`${API_BASE}/api/scrape/task/${task_id}/stream`)
+      esRef.current = es
       es.onmessage = (ev) => {
         try {
           const d = JSON.parse(ev.data)
           if (d.line) setChatMessages((prev) => [...prev, { role: 'assistant', content: d.line }])
-        } catch { }
+        } catch (e) {
+          console.error("Failed to parse message:", e)
+        }
       }
       es.addEventListener('done', (ev: MessageEvent) => {
         try {
@@ -286,12 +298,14 @@ export default function ChatPanel() {
           runTavilySearchFallback(name, limit)
         } finally {
           es.close()
+          esRef.current = null
           setChatLoading(false)
         }
       })
       es.onerror = (err) => {
         setChatMessages((prev) => [...prev, { role: 'assistant', content: `Search error: ${String(err)}` }])
         es.close()
+        esRef.current = null
         setChatLoading(false)
       }
     } catch (e) {
@@ -436,12 +450,13 @@ export default function ChatPanel() {
       const { task_id } = await startRes.json()
       // stream logs via SSE and append to chat
       const es = new EventSource(`${API_BASE}/api/scrape/task/${task_id}/stream`)
+      esRef.current = es
       es.onmessage = (ev) => {
         try {
           const d = JSON.parse(ev.data)
           if (d.line) setChatMessages((prev) => [...prev, { role: "assistant", content: d.line }])
-        } catch {
-          // ignore
+        } catch (e) {
+          console.error("Failed to parse scrape message:", e)
         }
       }
       es.addEventListener("done", (ev: MessageEvent) => {
@@ -457,12 +472,14 @@ export default function ChatPanel() {
           setChatMessages((prev) => [...prev, { role: "assistant", content: `Scrape ended (unable to parse result)` }])
         } finally {
           es.close()
+          esRef.current = null
           setChatLoading(false)
         }
       })
       es.onerror = (err) => {
         setChatMessages((prev) => [...prev, { role: "assistant", content: `Stream error: ${String(err)}` }])
         es.close()
+        esRef.current = null
         setChatLoading(false)
       }
     } catch (e) {

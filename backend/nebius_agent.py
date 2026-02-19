@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, List
 NEBIUS_API_KEY = os.getenv("NEBIUS_API_KEY")
 NEBIUS_MODEL = os.getenv("NEBIUS_MODEL", "nebius/meta-llama/Meta-Llama-3.1-8B-Instruct")
 NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1"
+API_BASE_URL = os.getenv("NEXT_PUBLIC_API_BASE", "http://localhost:8000")
 
 # Tool definitions for Nebius
 TOOLS = [
@@ -133,14 +134,22 @@ Be friendly, concise, and helpful."""
             result = response.json()
             
             # Check if LLM wants to use a tool
-            choice = result.get("choices", [{}])[0]
+    if result.get("choices") and len(result.get("choices", [])) > 0:
+                choice = result["choices"][0]
+            else:
+                return {"error": "No choices in LLM response"}
             message = choice.get("message", {})
             
-            if message.get("tool_calls"):
+            if message.get("tool_calls") and len(message.get("tool_calls", [])) > 0:
                 # LLM decided to use a tool
                 tool_call = message["tool_calls"][0]
                 function_name = tool_call["function"]["name"]
-                arguments = json.loads(tool_call["function"]["arguments"])
+                try:
+                    arguments = json.loads(tool_call["function"]["arguments"])
+                except (json.JSONDecodeError, KeyError) as e:
+                    return {
+                        "error": f"Failed to parse tool arguments: {str(e)}"
+                    }
                 
                 return {
                     "type": "tool_call",
@@ -162,11 +171,10 @@ Be friendly, concise, and helpful."""
 def execute_tool(function_name: str, arguments: Dict[str, Any]) -> str:
     """Execute the tool function and return results."""
     if function_name == "people_search":
-        # Call Apify orchestrator
         try:
             with httpx.Client(timeout=120.0) as client:
                 res = client.post(
-                    "http://localhost:8000/api/people-search/start-orchestrator",
+                    f"{API_BASE_URL}/api/people-search/start-orchestrator",
                     json={"people_name": arguments["name"], "data_limit": arguments.get("limit", 5)}
                 )
                 if res.status_code == 200:
@@ -176,24 +184,25 @@ def execute_tool(function_name: str, arguments: Dict[str, Any]) -> str:
             return f"Error: {str(e)}"
     
     elif function_name == "web_search":
-        # Call Tavily
-        from tavily_helper import tavily_search
-        result = tavily_search(arguments["query"], arguments.get("max_results", 5))
-        if result.get("ok"):
-            results = result["result"].get("results", [])
-            formatted = "\n\n".join([
-                f"**{r.get('title')}**\n{r.get('url')}\n{r.get('content', '')[:150]}..."
-                for r in results[:3]
-            ])
-            return formatted or "No results found"
-        return "Search failed"
+        try:
+            from tavily_helper import tavily_search
+            result = tavily_search(arguments["query"], arguments.get("max_results", 5))
+            if result.get("ok"):
+                results = result["result"].get("results", [])
+                formatted = "\n\n".join([
+                    f"**{r.get('title')}**\n{r.get('url')}\n{r.get('content', '')[:150]}..."
+                    for r in results[:3]
+                ])
+                return formatted or "No results found"
+            return "Search failed"
+        except Exception as e:
+            return f"Error: {str(e)}"
     
     elif function_name == "property_scraper":
-        # Call property scraper
         try:
             with httpx.Client(timeout=120.0) as client:
                 res = client.post(
-                    "http://localhost:8000/api/scrape/start",
+                    f"{API_BASE_URL}/api/scrape/start",
                     json={"url": arguments["url"]}
                 )
                 if res.status_code == 200:

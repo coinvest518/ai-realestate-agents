@@ -86,14 +86,11 @@ export function Pricing() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || data.error || 'Checkout creation failed')
 
-      // If backend returns a Stripe-hosted URL, redirect there.
+      // Redirect to Stripe-hosted checkout
       if (data.url) {
         window.location.href = data.url
-      } else if (data.session_id) {
-        // fallback: use Stripe.js redirect if available
-        const stripePublic = (await import('@stripe/stripe-js')).loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
-        const stripe = await stripePublic
-        await stripe?.redirectToCheckout({ sessionId: data.session_id })
+      } else {
+        throw new Error('No checkout URL returned')
       }
     } catch (err: any) {
       toast.error(err.message || 'Checkout failed')

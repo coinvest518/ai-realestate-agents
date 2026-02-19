@@ -10,6 +10,8 @@ from typing import Optional
 # Import existing tool functions
 from tavily_helper import tavily_search
 
+API_BASE_URL = os.getenv("NEXT_PUBLIC_API_BASE", "http://localhost:8000")
+
 @tool("People Search Tool")
 def people_search_tool(name: str, limit: int = 5) -> str:
     """
@@ -27,7 +29,7 @@ def people_search_tool(name: str, limit: int = 5) -> str:
     try:
         with httpx.Client(timeout=120.0) as client:
             res = client.post(
-                "http://localhost:8000/api/people-search/start-orchestrator",
+                f"{API_BASE_URL}/api/people-search/start-orchestrator",
                 json={"people_name": name, "data_limit": limit}
             )
             if res.status_code == 200:
@@ -49,15 +51,18 @@ def web_search_tool(query: str, max_results: int = 5) -> str:
     Returns:
         Search results with titles, URLs, and content snippets
     """
-    result = tavily_search(query, max_results)
-    if result.get("ok") and result.get("result", {}).get("results"):
-        results = result["result"]["results"]
-        formatted = "\n\n".join([
-            f"**{r.get('title', 'N/A')}**\nURL: {r.get('url', 'N/A')}\n{r.get('content', '')[:200]}..."
-            for r in results[:max_results]
-        ])
-        return formatted
-    return "No results found."
+    try:
+        result = tavily_search(query, max_results)
+        if result.get("ok") and result.get("result", {}).get("results"):
+            results = result["result"]["results"]
+            formatted = "\n\n".join([
+                f"**{r.get('title', 'N/A')}**\nURL: {r.get('url', 'N/A')}\n{r.get('content', '')[:200]}..."
+                for r in results[:max_results]
+            ])
+            return formatted
+        return "No results found."
+    except Exception as e:
+        return f"Search error: {str(e)}"
 
 @tool("Property Scraper Tool")
 def property_scraper_tool(url: str) -> str:
@@ -75,7 +80,7 @@ def property_scraper_tool(url: str) -> str:
     try:
         with httpx.Client(timeout=120.0) as client:
             res = client.post(
-                "http://localhost:8000/api/scrape/start",
+                f"{API_BASE_URL}/api/scrape/start",
                 json={"url": url}
             )
             if res.status_code == 200:

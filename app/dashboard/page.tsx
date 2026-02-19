@@ -399,18 +399,15 @@ export default function DashboardPage() {
   return (
     <main className="flex-1 overflow-auto bg-background text-foreground">
       <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-8 lg:py-10 space-y-12 md:space-y-16">
-        {/* Overview */}
-        <section id="overview" className="scroll-mt-24">
-          <div className="flex flex-col gap-4 md:gap-6">
-            <h2 className="text-2xl font-bold tracking-tight md:text-3xl text-foreground">
-              Overview
-            </h2>
+        {/* Supported sources (moved above chat) */}
+        <section id="supported-sources" className="scroll-mt-24">
+          <div className="flex flex-col gap-3 md:gap-4">
             <p className="text-base text-muted-foreground md:text-lg max-w-2xl">
-              Run property scrapes (Zillow, Realtor, Redfin) and people search via Apify Skip Trace. Use the sidebar to jump to any section.
+              Use the AI chat above for intelligent searches, or use these dedicated tools directly.
             </p>
 
             {/* Supported sources */}
-            <div className="flex items-center gap-3 mt-3">
+            <div className="flex items-center gap-3 mt-1">
               <span className="text-sm font-medium text-muted-foreground mr-2">Supported sources:</span>
               <div className="flex gap-2 flex-wrap">
                 <Badge className="text-sm">Zillow</Badge>
@@ -423,7 +420,10 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* API & env removed — moved to Settings (use sidebar "Settings") */}
+        {/* Chat - Main Feature */}
+        <section id="chat" className="scroll-mt-24">
+          <ChatPanel />
+        </section>
 
         {/* Property scrape */}
         <section id="property-scrape" className="scroll-mt-24 space-y-6">
@@ -646,10 +646,7 @@ export default function DashboardPage() {
           </Card>
         </section>
 
-        {/* Chat */}
-        <section id="chat" className="scroll-mt-24">
-          <ChatPanel />
-        </section>
+
       </div>
 
       {/* Auth Modal */}

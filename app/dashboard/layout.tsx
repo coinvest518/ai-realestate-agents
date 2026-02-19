@@ -15,7 +15,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Home, LayoutDashboard, Building2, UserSearch, MessageCircle, Settings, History } from "lucide-react"
-import { UserMenu } from "@/components/user-menu"
+import { UserMenu } from "@/lib/user-menu"
 
 export default function DashboardLayout({
   children,
