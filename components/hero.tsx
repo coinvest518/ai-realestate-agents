@@ -7,24 +7,27 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Zap } from "lucide-react"
 
 const outputLines = [
-  { delay: 0, text: '[' },
-  { delay: 300, text: '  {' },
-  { delay: 600, text: '    "name": "Sarah Mitchell",' },
-  { delay: 900, text: '    "brokerage": "Compass Real Estate",' },
-  { delay: 1200, text: '    "phone": "+1 (415) 555-0192",' },
-  { delay: 1500, text: '    "email": "sarah.m@compass.com",' },
-  { delay: 1800, text: '    "listings": 47,' },
-  { delay: 2100, text: '    "avg_price": "$1,250,000",' },
-  { delay: 2400, text: '    "rating": 4.9,' },
-  { delay: 2700, text: '    "location": "San Francisco, CA"' },
-  { delay: 3000, text: '  },' },
-  { delay: 3300, text: '  {' },
-  { delay: 3600, text: '    "name": "David Chen",' },
-  { delay: 3900, text: '    "brokerage": "Keller Williams",' },
-  { delay: 4200, text: '    "phone": "+1 (310) 555-0847",' },
-  { delay: 4500, text: '    "listings": 63' },
-  { delay: 4800, text: '  }' },
-  { delay: 5100, text: ']' },
+  { delay: 0, text: '✓ Scraping completed successfully' },
+  { delay: 300, text: '' },
+  { delay: 400, text: '━━━ Agent Profile #1 ━━━━━━━━━━━━━━━━━━━━━━━━━' },
+  { delay: 700, text: 'Name:        Sarah Mitchell' },
+  { delay: 1000, text: 'Brokerage:   Compass Real Estate' },
+  { delay: 1300, text: 'Phone:       +1 (415) 555-0192' },
+  { delay: 1600, text: 'Email:       sarah.m@compass.com' },
+  { delay: 1900, text: 'Listings:    47 active properties' },
+  { delay: 2200, text: 'Avg Price:   $1,250,000' },
+  { delay: 2500, text: 'Rating:      ⭐⭐⭐⭐⭐ 4.9/5.0' },
+  { delay: 2800, text: 'Location:    San Francisco, CA' },
+  { delay: 3100, text: '' },
+  { delay: 3200, text: '━━━ Agent Profile #2 ━━━━━━━━━━━━━━━━━━━━━━━━━' },
+  { delay: 3500, text: 'Name:        David Chen' },
+  { delay: 3800, text: 'Brokerage:   Keller Williams' },
+  { delay: 4100, text: 'Phone:       +1 (310) 555-0847' },
+  { delay: 4400, text: 'Email:       david.chen@kw.com' },
+  { delay: 4700, text: 'Listings:    63 active properties' },
+  { delay: 5000, text: 'Rating:      ⭐⭐⭐⭐⭐ 4.8/5.0' },
+  { delay: 5300, text: '' },
+  { delay: 5400, text: '✓ Extracted 2 agent profiles in 3.2s' },
 ]
 
 export function Hero() {
@@ -39,11 +42,42 @@ export function Hero() {
   }, [])
 
   const colorize = (text: string) => {
+    // Empty lines
+    if (!text.trim()) return text
+    
+    // Color separators
+    if (text.includes('━')) {
+      return `<span class="text-muted-foreground/30">${text}</span>`
+    }
+    
+    // Color success checkmarks
+    if (text.startsWith('✓')) {
+      return `<span class="text-[oklch(0.7_0.17_145)]">${text}</span>`
+    }
+    
+    // Color field:value pairs
+    const colonIndex = text.indexOf(':')
+    if (colonIndex > 0) {
+      const field = text.substring(0, colonIndex + 1)
+      const value = text.substring(colonIndex + 1)
+      
+      // Check if value contains stars
+      if (value.includes('⭐')) {
+        const starsMatch = value.match(/(⭐+)/)
+        if (starsMatch) {
+          const beforeStars = value.substring(0, value.indexOf('⭐'))
+          const stars = starsMatch[0]
+          const afterStars = value.substring(value.indexOf('⭐') + stars.length)
+          return `<span class="text-[oklch(0.7_0.15_200)]">${field}</span><span class="text-[oklch(0.8_0.15_85)]">${beforeStars}</span><span class="text-[oklch(0.8_0.18_85)]">${stars}</span><span class="text-[oklch(0.8_0.15_85)]">${afterStars}</span>`
+        }
+      }
+      
+      // Highlight numbers and prices in value
+      const highlightedValue = value.replace(/(\$[\d,]+|\d+\.\d+|\d+)/g, '<span class="text-primary">$1</span>')
+      return `<span class="text-[oklch(0.7_0.15_200)]">${field}</span><span class="text-[oklch(0.8_0.15_85)]">${highlightedValue}</span>`
+    }
+    
     return text
-      .replace(/"([^"]+)":/g, '<span class="text-[oklch(0.7_0.15_200)]">"$1"</span>:')
-      .replace(/: "([^"]+)"/g, ': <span class="text-[oklch(0.8_0.15_85)]">"$1"</span>')
-      .replace(/: (\d+\.?\d*)/g, ': <span class="text-primary">$1</span>')
-      .replace(/[\[\]{}]/g, '<span class="text-muted-foreground">$&</span>')
   }
 
   return (
@@ -100,18 +134,15 @@ export function Hero() {
                 <div className="size-3 sm:size-4 rounded-full bg-[oklch(0.65_0.2_25)]" />
                 <div className="size-3 sm:size-4 rounded-full bg-[oklch(0.8_0.18_85)]" />
                 <div className="size-3 sm:size-4 rounded-full bg-[oklch(0.7_0.17_145)]" />
-                <span className="ml-3 font-mono text-xs sm:text-sm text-muted-foreground">response.json</span>
+                <span className="ml-3 font-mono text-xs sm:text-sm text-muted-foreground">ai-output.txt</span>
                 <Badge variant="outline" className="ml-auto border-primary/30 text-primary text-[10px] sm:text-xs px-1.5 py-0">
-                  .JSON
+                  AI
                 </Badge>
               </div>
               {/* Code content */}
               <div className="p-4 sm:p-5 lg:p-6 font-mono text-[13px] sm:text-sm lg:text-base leading-6 lg:leading-7">
                 {outputLines.slice(0, visibleLines).map((line, i) => (
                   <div key={i} className="flex">
-                    <span className="mr-4 inline-block w-6 select-none text-right text-muted-foreground/50">
-                      {i + 1}
-                    </span>
                     <span dangerouslySetInnerHTML={{ __html: colorize(line.text) }} />
                   </div>
                 ))}
