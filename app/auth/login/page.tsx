@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
+
+  useEffect(() => {
+    try {
+      setSearchParams(new URLSearchParams(window.location.search))
+    } catch {
+      setSearchParams(null)
+    }
+  }, [])
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
