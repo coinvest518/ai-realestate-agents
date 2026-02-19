@@ -154,7 +154,6 @@ Be friendly, concise, and helpful.{user_context}"""
                 "temperature": 0.7,
                 "max_tokens": 512
             }
-            
             response = client.post(
                 f"{NEBIUS_BASE_URL}/chat/completions",
                 headers={
@@ -165,38 +164,33 @@ Be friendly, concise, and helpful.{user_context}"""
             )
             response.raise_for_status()
             result = response.json()
-            
-            # Check if LLM wants to use a tool
-    if result.get("choices") and len(result.get("choices", [])) > 0:
-                choice = result["choices"][0]
-            else:
-                return {"error": "No choices in LLM response"}
-            message = choice.get("message", {})
-            
-            if message.get("tool_calls") and len(message.get("tool_calls", [])) > 0:
-                # LLM decided to use a tool
-                tool_call = message["tool_calls"][0]
-                function_name = tool_call["function"]["name"]
-                try:
-                    arguments = json.loads(tool_call["function"]["arguments"])
-                except (json.JSONDecodeError, KeyError) as e:
-                    return {
-                        "error": f"Failed to parse tool arguments: {str(e)}"
-                    }
-                
+        if result.get("choices") and len(result.get("choices", [])) > 0:
+            choice = result["choices"][0]
+        else:
+            return {"error": "No choices in LLM response"}
+        message = choice.get("message", {})
+        if message.get("tool_calls") and len(message.get("tool_calls", [])) > 0:
+            # LLM decided to use a tool
+            tool_call = message["tool_calls"][0]
+            function_name = tool_call["function"]["name"]
+            try:
+                arguments = json.loads(tool_call["function"]["arguments"])
+            except (json.JSONDecodeError, KeyError) as e:
                 return {
-                    "type": "tool_call",
-                    "function": function_name,
-                    "arguments": arguments,
-                    "message": message.get("content", "")
+                    "error": f"Failed to parse tool arguments: {str(e)}"
                 }
-            else:
-                # LLM responded conversationally
-                return {
-                    "type": "text",
-                    "content": message.get("content", "No response")
-                }
-                
+            return {
+                "type": "tool_call",
+                "function": function_name,
+                "arguments": arguments,
+                "message": message.get("content", "")
+            }
+        else:
+            # LLM responded conversationally
+            return {
+                "type": "text",
+                "content": message.get("content", "No response")
+            }
     except Exception as e:
         return {"error": str(e)}
 

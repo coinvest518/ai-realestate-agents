@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Header, HTTPException
 from typing import Optional
-from supabase_helper import supabase
+from supabase_helper import get_supabase
 import json
 
 router = APIRouter()
@@ -12,6 +12,10 @@ async def track_usage(body: dict, x_user_id: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="User ID required")
     
     try:
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         usage_type = body.get("type", "search")  # 'scrape', 'people_search'
         
         # Log usage in database
@@ -31,6 +35,10 @@ async def get_search_usage(x_user_id: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="User ID required")
     
     try:
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         result = supabase.table("people_searches").select("id").eq("user_id", x_user_id).execute()
         count = len(result.data) if result.data else 0
         
@@ -60,6 +68,10 @@ async def check_free_trial(x_user_id: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="User ID required")
     
     try:
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         # Count searches
         result = supabase.table("people_searches").select("id").eq("user_id", x_user_id).execute()
         search_count = len(result.data) if result.data else 0
@@ -91,6 +103,10 @@ async def upgrade_tier(body: dict, x_user_id: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="User ID required")
     
     try:
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         tier = body.get("tier", "pro")  # 'pro' or 'enterprise'
         
         supabase.table("user_profiles").update({

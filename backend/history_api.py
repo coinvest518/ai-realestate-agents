@@ -52,7 +52,10 @@ async def delete_history_item(
         raise HTTPException(status_code=401, detail="User ID required")
     
     try:
-        from supabase_helper import supabase
+        from supabase_helper import get_supabase
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
         
         table = "people_searches" if item_type == "people" else "property_scrapes"
         result = supabase.table(table).delete().eq("id", item_id).eq("user_id", x_user_id).execute()
@@ -72,7 +75,10 @@ async def export_to_pdf(
         raise HTTPException(status_code=401, detail="User ID required")
     
     try:
-        from supabase_helper import supabase
+        from supabase_helper import get_supabase
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
         
         table = "people_searches" if item_type == "people" else "property_scrapes"
         result = supabase.table(table).select("*").eq("id", item_id).eq("user_id", x_user_id).execute()
@@ -140,7 +146,10 @@ async def get_storage_usage(x_user_id: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="User ID required")
     
     try:
-        from supabase_helper import supabase
+        from supabase_helper import get_supabase
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
         
         # Calculate storage from history items
         people_result = supabase.table("people_searches").select("results").eq("user_id", x_user_id).execute()

@@ -2,7 +2,7 @@ import os
 import stripe
 from fastapi import APIRouter, HTTPException, Header
 from typing import Optional
-from supabase_helper import supabase
+from supabase_helper import get_supabase
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
@@ -38,6 +38,10 @@ async def create_checkout_session(body: dict, x_user_id: Optional[str] = Header(
             raise HTTPException(status_code=400, detail="Invalid plan")
         
         plan_info = PLANS[plan]
+
+        supabase = get_supabase()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not initialized")
 
         # Get user email from Supabase
         user_result = supabase.table("user_profiles").select("email").eq("id", x_user_id).execute()
@@ -131,6 +135,10 @@ async def stripe_webhook(request):
             session = event["data"]["object"]
             user_id = session["metadata"]["user_id"]
             plan = session["metadata"]["plan"]
+            
+            supabase = get_supabase()
+            if not supabase:
+                raise HTTPException(status_code=500, detail="Database not initialized")
             
             # Update user tier in Supabase
             supabase.table("user_profiles").update({

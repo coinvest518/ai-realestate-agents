@@ -31,22 +31,6 @@ function extractZpidFromUrl(url: string): string | null {
   return match ? match[1] : null
 }
 
-function generatePlaceholderImages(index: number): string[] {
-  // Use Unsplash for free high-quality house images
-  const houseIds = [
-    'photo-1568605114967-8130f3a36994', // Modern house
-    'photo-1570129477492-45c003edd2be', // White house
-    'photo-1600596542815-ffad4c1539a9', // Suburban house
-    'photo-1600585154340-be6161a56a0c', // Contemporary house
-  ]
-  const id = houseIds[index % houseIds.length]
-  return [
-    `https://images.unsplash.com/${id}?w=800&h=600&fit=crop`,
-    `https://images.unsplash.com/${id}?w=800&h=600&fit=crop&sat=-100`,
-    `https://images.unsplash.com/${id}?w=800&h=600&fit=crop&brightness=10`,
-  ]
-}
-
 export default function MarketPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,23 +48,7 @@ export default function MarketPage() {
       const res = await fetch(`${API_BASE}/api/market/properties?limit=${limit}`)
       if (!res.ok) throw new Error("Failed to fetch properties")
       const data = await res.json()
-      const propsWithImages = (data.properties || []).map((prop: Property, idx: number) => {
-        // Replace fake/placeholder image URLs with real Unsplash images
-        const hasFakeImages = !prop.image_urls || 
-          prop.image_urls.length === 0 || 
-          prop.image_urls.some(url => 
-            url.includes('abcdef') || 
-            url.includes('xyz123') || 
-            url.includes('example') ||
-            !url.startsWith('http')
-          )
-        
-        if (hasFakeImages) {
-          prop.image_urls = generatePlaceholderImages(idx)
-        }
-        return prop
-      })
-      setProperties(propsWithImages)
+      setProperties(data.properties || [])
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error loading properties")
       setProperties([])

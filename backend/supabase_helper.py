@@ -5,17 +5,13 @@ import os
 from typing import Optional, Dict, Any
 from supabase import create_client, Client
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
 def get_supabase() -> Optional[Client]:
-    """Get Supabase client"""
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    """Get Supabase client - reads env vars at call time"""
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
         return None
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-# Export singleton instance
-supabase = get_supabase()
+    return create_client(url, key)
 
 
 def save_people_search(user_id: str, search_query: str, results: Any, source: str = "apify") -> bool:

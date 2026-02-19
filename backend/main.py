@@ -21,8 +21,9 @@ from stripe_api import router as stripe_router
 
 # Load .env from project root
 from dotenv import load_dotenv
-load_dotenv()
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+env_path = os.path.join(root_dir, ".env")
+load_dotenv(env_path)
 
 # In-memory settings (persist to DB later). Defaults pulled from environment where appropriate.
 SETTINGS = {
@@ -584,30 +585,72 @@ def apify_task_last_run(task_id: str):
 # Market data endpoint - fetch sample properties
 @app.get("/api/market/properties")
 def get_market_properties(limit: int = 20, offset: int = 0):
-    """Fetch market properties from JSON file or cache"""
-    # Load from JSON file first
-    json_path = os.path.join(os.path.dirname(__file__), "albany_properties.json")
-    if os.path.exists(json_path):
-        try:
-            with open(json_path, 'r') as f:
-                properties = json.load(f)
-            return {"properties": properties[offset:offset+limit], "total": len(properties), "limit": limit, "offset": offset}
-        except Exception as e:
-            print(f"Error loading JSON: {e}")
-    
-    # Fallback to Supabase
+    """Fetch market properties from Supabase cache"""
     from supabase_helper import get_supabase
     supabase = get_supabase()
+    
     if not supabase:
+        print("ERROR: Supabase not initialized")
         return {"properties": [], "total": 0}
     
+    # Unsplash house images for placeholders
+    UNSPLASH_HOUSES = [
+        'photo-1568605114967-8130f3a36994',
+        'photo-1570129477492-45c003edd2be',
+        'photo-1600596542815-ffad4c1539a9',
+        'photo-1600585154340-be6161a56a0c',
+        'photo-1605276374104-dee2a0ed3cd6',
+        'photo-1564013799919-ab600027ffc6',
+    ]
+    
+    def has_valid_images(urls):
+        if not urls or not isinstance(urls, list) or len(urls) == 0:
+            return False
+        for url in urls:
+            if not isinstance(url, str) or not url.startswith('http'):
+                return False
+            if any(x in url.lower() for x in ['abcdef', 'xyz123', 'example', '-1.jpg', '-2.jpg', 'clinton-ave', 'russell-rd', 'pine-ave', 'arcadia-ct', 'bryn-mawr', 'eileen-st', 'hackett-blvd', 'fairway-ct', 'everett-rd']):
+                return False
+        return True
+    
+    def generate_placeholder_images(index):
+        photo_id = UNSPLASH_HOUSES[index % len(UNSPLASH_HOUSES)]
+        return [
+            f"https://images.unsplash.com/{photo_id}?w=800&h=600&fit=crop",
+            f"https://images.unsplash.com/{photo_id}?w=800&h=600&fit=crop&sat=-20",
+            f"https://images.unsplash.com/{photo_id}?w=800&h=600&fit=crop&brightness=5",
+        ]
+    
     try:
-        response = supabase.table('bright_data_cache').select('property_url, property_data, cached_at').gt('expires_at', 'now()').order('cached_at', desc=True).range(offset, offset + limit - 1).execute()
-        properties = []
-        for row in response.data:
-            data = row.get('property_data', {})
-            properties.append({'id': row.get('property_url', '').split('/')[-1], 'url': row.get('property_url'), 'address': data.get('address', 'N/A'), 'city': data.get('city', ''), 'state': data.get('state', ''), 'zip': data.get('zip', ''), 'price': data.get('price'), 'beds': data.get('beds'), 'baths': data.get('baths'), 'sqft': data.get('sqft') or data.get('square_feet'), 'image_urls': data.get('image_urls', []), 'description': data.get('description', ''), 'source': row.get('property_data', {}).get('source', 'unknown'), 'cached_at': row.get('cached_at')})
-        return {"properties": properties, "total": len(properties), "limit": limit, "offset": offset}
+        response = supabase.table('bright_data_cache').select('property_url, property_data, cached_at').order('cached_at', desc=True).range(offset, offset + limit - 1).execute()
+        
+        if response.data:
+            properties = []
+            for idx, row in enumerate(response.data):
+                data = row.get('property_data', {})
+                image_urls = data.get('image_urls', [])
+                
+                if not has_valid_images(image_urls):
+                    image_urls = generate_placeholder_images(idx)
+                
+                properties.append({
+                    'id': row.get('property_url', '').split('/')[-1],
+                    'url': row.get('property_url'),
+                    'address': data.get('address', 'N/A'),
+                    'city': data.get('city', ''),
+                    'state': data.get('state', ''),
+                    'zip': data.get('zip', ''),
+                    'price': data.get('price'),
+                    'beds': data.get('beds'),
+                    'baths': data.get('baths'),
+                    'sqft': data.get('sqft') or data.get('square_feet'),
+                    'image_urls': image_urls,
+                    'description': data.get('description', ''),
+                    'source': data.get('source', 'unknown'),
+                    'cached_at': row.get('cached_at')
+                })
+            return {"properties": properties, "total": len(properties), "limit": limit, "offset": offset}
+        return {"properties": [], "total": 0}
     except Exception as e:
         print(f"Error: {e}")
         return {"properties": [], "total": 0}
