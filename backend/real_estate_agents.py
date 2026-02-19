@@ -85,20 +85,48 @@ def build_scraping_task(agent, listing_url: str):
     )
 
 
-def scrape_property_data(listing_url: str):
-    """Run the scraping crew for the given listing URL. Returns raw crew result."""
+def scrape_property_data(listing_url: str, log_callback=None):
+    """Run the scraping crew for the given listing URL. Returns raw crew result.
+    
+    Args:
+        listing_url: The property URL to scrape
+        log_callback: Optional function to call with log messages
+    """
+    def log(msg):
+        if log_callback:
+            log_callback(msg)
+        print(msg)
+    
+    log("Initializing Nebius LLM...")
     llm = get_llm()
+    
+    log("Starting Bright Data MCP server...")
     server_params = get_server_params()
-    with MCPServerAdapter(server_params) as mcp_tools:
-        scraper_agent = build_scraper_agent(mcp_tools, llm)
-        scraping_task = build_scraping_task(scraper_agent, listing_url)
-        crew = Crew(
-            agents=[scraper_agent],
-            tasks=[scraping_task],
-            process=Process.sequential,
-            verbose=True,
-        )
-        return crew.kickoff()
+    
+    try:
+        with MCPServerAdapter(server_params) as mcp_tools:
+            log(f"MCP server connected with {len(mcp_tools)} tools")
+            log("Building scraper agent...")
+            scraper_agent = build_scraper_agent(mcp_tools, llm)
+            
+            log("Creating scraping task...")
+            scraping_task = build_scraping_task(scraper_agent, listing_url)
+            
+            log("Starting CrewAI crew...")
+            crew = Crew(
+                agents=[scraper_agent],
+                tasks=[scraping_task],
+                process=Process.sequential,
+                verbose=True,
+            )
+            
+            log("Agent is analyzing the property page...")
+            result = crew.kickoff()
+            log("Scraping completed successfully!")
+            return result
+    except Exception as e:
+        log(f"Error during scraping: {str(e)}")
+        raise
 
 
 if __name__ == "__main__":

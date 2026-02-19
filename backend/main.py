@@ -295,8 +295,11 @@ def start_scrape(body: ScrapeRequest, use_dataset: bool = False):
 
             _log(tid, "Running CrewAI scraping agent...")
             from real_estate_agents import scrape_property_data
-            _log(tid, "Connecting to MCP server and LLM — this may take a few seconds...")
-            result = scrape_property_data(u)
+            
+            def agent_log(msg):
+                _log(tid, msg)
+            
+            result = scrape_property_data(u, log_callback=agent_log)
             _log(tid, "Agent finished — processing output")
             text = str(result.raw) if hasattr(result, "raw") else str(result)
             json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
