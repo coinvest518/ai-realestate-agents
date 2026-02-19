@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Loader2, MessageCircle } from "lucide-react"
 
-type ChatMessage = { role: "user" | "assistant"; content: string; data?: unknown; action?: { kind: "confirm"; type: "people" | "scrape" | "apify"; params?: any; pending?: boolean }; expanded?: boolean | null }
+type ChatMessage = { role: "user" | "assistant"; content: string; data?: unknown; action?: { kind: "confirm"; type: "people" | "scrape" | "apify" | "suggest-alternatives"; params?: any; pending?: boolean }; expanded?: boolean | null }
 
 // --- Tool list for agent self-awareness ---
 const TOOL_LIST = [
@@ -315,12 +315,35 @@ export default function ChatPanel() {
         const formatted = data.result.results.map((r: any, idx: number) => 
           `**Result ${idx + 1}:**\n- Title: ${r.title || 'N/A'}\n- URL: ${r.url || 'N/A'}\n- Content: ${(r.content || r.snippet || 'N/A').substring(0, 200)}...`
         ).join('\n\n')
-        setChatMessages((prev) => [...prev, { role: 'assistant', content: `Tavily web search results:\n\n${formatted}`, data: data.result }])
+        setChatMessages((prev) => [
+          ...prev, 
+          { role: 'assistant', content: `Tavily web search results:\n\n${formatted}`, data: data.result },
+          { 
+            role: 'assistant', 
+            content: `Still no luck? I can try:\n\n1. **Property Scraper** - If you have a property URL\n2. **General Web Search** - Broader search query\n3. **Apify Actors** - Run custom actor\n\nWould you like to try any of these? Just say "yes" or specify which one.`,
+            action: { kind: 'confirm', type: 'suggest-alternatives', params: { originalQuery: name } }
+          }
+        ])
       } else {
-        setChatMessages((prev) => [...prev, { role: 'assistant', content: `No results from Tavily either. Try different search terms.` }])
+        setChatMessages((prev) => [
+          ...prev, 
+          { role: 'assistant', content: `No results from Tavily either.` },
+          {
+            role: 'assistant',
+            content: `I've tried Apify Skip Trace and Tavily Search. Would you like me to:\n\n1. Try a **different search query**?\n2. Run a **property scraper** if you have a URL?\n3. Use **general web search** for broader results?\n\nLet me know what you'd like to try next.`,
+            action: { kind: 'confirm', type: 'suggest-alternatives', params: { originalQuery: name } }
+          }
+        ])
       }
     } catch (e) {
-      setChatMessages((prev) => [...prev, { role: 'assistant', content: `Tavily search failed: ${e instanceof Error ? e.message : String(e)}` }])
+      setChatMessages((prev) => [
+        ...prev, 
+        { role: 'assistant', content: `Tavily search failed: ${e instanceof Error ? e.message : String(e)}` },
+        {
+          role: 'assistant',
+          content: `Both automated tools failed. I can still help with:\n\n- Property scraping (paste a URL)\n- General questions\n- Running custom Apify actors\n\nWhat would you like to try?`
+        }
+      ])
     }
   }
 
@@ -467,6 +490,11 @@ export default function ChatPanel() {
       } else if (action.type === 'apify') {
         const { taskId, input } = (action.params || {}) as any
         await runApifyTaskFromChat(taskId, input, { wait_for_finish: false, fetch_dataset: false })
+      } else if (action.type === 'suggest-alternatives') {
+        setChatMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: 'Which alternative would you like to try? Reply with:\n- "property scraper" + URL\n- "web search" + query\n- "apify actor" + task name' }
+        ])
       }
     } finally {
       // clear action UI

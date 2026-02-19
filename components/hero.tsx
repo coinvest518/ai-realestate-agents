@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Zap } from "lucide-react"
@@ -28,6 +29,7 @@ const outputLines = [
 
 export function Hero() {
   const [visibleLines, setVisibleLines] = useState(0)
+  const router = useRouter()
 
   useEffect(() => {
     const timers = outputLines.map((line, i) =>
@@ -69,11 +71,11 @@ export function Hero() {
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button size="lg" className="h-12 px-6 text-base bg-primary text-primary-foreground hover:bg-primary/90">
+              <Button size="lg" onClick={() => router.push('/dashboard')} className="h-12 px-6 text-base bg-primary text-primary-foreground hover:bg-primary/90">
                 Start Scraping Free
                 <ArrowRight className="size-5" />
               </Button>
-              <Button variant="outline" size="lg" className="h-12 px-6 text-base border-border text-foreground hover:bg-secondary">
+              <Button variant="outline" size="lg" onClick={() => window.open('https://github.com/coinvest518/ai-py-agent-blogger/blob/main/README.md', '_blank')} className="h-12 px-6 text-base border-border text-foreground hover:bg-secondary">
                 View Documentation
               </Button>
             </div>

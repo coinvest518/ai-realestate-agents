@@ -15,6 +15,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 from tavily_helper import tavily_search
+from history_api import router as history_router
+from usage_api import router as usage_router
+from stripe_api import router as stripe_router
 
 # Load .env from project root
 from dotenv import load_dotenv
@@ -95,58 +98,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include history, usage, and stripe routers
+app.include_router(history_router)
+app.include_router(usage_router)
+app.include_router(stripe_router)
+
 
 # ---------------- General LLM Chat endpoint ----------------
 @app.post("/api/chat")
 async def chat_endpoint(request: Request):
     body = await request.json()
     prompt = (body.get("prompt") or body.get("message") or "").strip()
+    conversation_history = body.get("history", [])
+    
     if not prompt:
         raise HTTPException(status_code=400, detail="Missing prompt")
+    
+    # Use Nebius function calling agent
+    try:
+        from nebius_agent import chat_with_nebius_agent
+        response = chat_with_nebius_agent(prompt, conversation_history)
+        return {"response": response}
+    except Exception as e:
+        print(f"/api/chat: Nebius agent error: {e}")
+        # Fallback to simple response
+        pass
+    
+    # Fallback: Simple pattern matching
     low = prompt.lower()
     if re.match(r'^(hi|hello|hey|yo|sup|good\s+morning|good\s+afternoon|good\s+evening)\b', low):
         return {"response": "Hi — how can I help you today?"}
-    if re.search(r'what (tools|can you do|abilities|features)|available tools|list (tools|features)', low):
-        return {"response": (
-            "I can: 1) run people searches (Apify actors), 2) scrape property listings (CrewAI + Bright Data MCP), "
-            "and 3) answer general questions via an LLM. Ask for a property URL, say 'Find John Doe', or ask to run an Apify Actor."
-        )}
-
-    # Try Nebius LLM directly (CrewAI is for scraping only)
-    if os.getenv("NEBIUS_API_KEY"):
-        try:
-            import httpx
-            neb_key = os.getenv('NEBIUS_API_KEY')
-            neb_model = os.getenv('NEBIUS_MODEL', 'nebius/meta-llama/Meta-Llama-3.1-8B-Instruct').strip()
-            model_name = neb_model.replace('nebius/', '') if neb_model.startswith('nebius/') else neb_model
-            url = 'https://api.tokenfactory.nebius.com/v1/chat/completions'
-            payload = { 'model': model_name, 'messages': [{ 'role': 'user', 'content': prompt }], 'max_tokens': 512 }
-            with httpx.Client(timeout=30.0) as client:
-                r = client.post(url, headers={ 'Authorization': f'Bearer {neb_key}', 'Content-Type': 'application/json' }, json=payload)
-                r.raise_for_status()
-                jr = r.json()
-                if isinstance(jr, dict) and jr.get('choices'):
-                    ch = jr['choices'][0]
-                    if isinstance(ch, dict) and ch.get('message') and ch['message'].get('content'):
-                        return { 'response': ch['message']['content'] }
-                return { 'response': str(jr) }
-        except Exception as e:
-            print(f"/api/chat: Nebius error: {e}")
-
-    if os.getenv("OPENAI_API_KEY"):
-        try:
-            import openai
-            openai.api_key = os.getenv("OPENAI_API_KEY")
-            chat_completion = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=512,
-            )
-            return {"response": chat_completion.choices[0].message.content}
-        except Exception:
-            raise HTTPException(status_code=503, detail="No LLM available")
-
-    return {"response": "No LLM is configured on the server. I can still run people-search and scrapes if you give me names or property URLs."}
+    
+    return {"response": "I can help you with people searches, property scraping, and general questions. What would you like to do?"}
 
 
 class ScrapeRequest(BaseModel):
@@ -397,7 +380,7 @@ class ApifyRunRequest(BaseModel):
     fetch_dataset: bool = False
 
 
-def _run_people_search_orchestration(body: PeopleSearchRequest, log_fn=None, timeout: int = 120):
+def _run_people_search_orchestration(body: PeopleSearchRequest, log_fn=None, timeout: int = 120, user_id: str = None):
     def _log(m: str):
         if callable(log_fn):
             try:
@@ -416,6 +399,13 @@ def _run_people_search_orchestration(body: PeopleSearchRequest, log_fn=None, tim
             items = apify_res.get('items', []) if isinstance(apify_res, dict) else []
             if items:
                 _log(f"Apify returned {len(items)} results")
+                # Auto-save to Supabase
+                if user_id:
+                    try:
+                        from supabase_helper import save_people_search
+                        save_people_search(user_id, body.people_name, {'items': items}, 'apify')
+                    except Exception as e:
+                        print(f"Error saving to Supabase: {e}")
                 return {'ok': True, 'source': 'apify', 'result': {'items': items, 'dataset_id': apify_res.get('dataset_id')}}
             else:
                 _log(f"Apify returned no results")
@@ -428,16 +418,24 @@ def _run_people_search_orchestration(body: PeopleSearchRequest, log_fn=None, tim
 
 
 @app.post('/api/people-search/start-orchestrator')
-def people_search_start_orchestrator(body: PeopleSearchRequest):
+def people_search_start_orchestrator(body: PeopleSearchRequest, request: Request):
     task_id = uuid4().hex
     TASKS[task_id] = {"status": "running", "logs": [], "result": None}
+    
+    # Extract user_id from Authorization header (if present)
+    user_id = None
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        # TODO: Verify JWT token and extract user_id
+        # For now, accept any user_id from header
+        user_id = request.headers.get('X-User-ID')
 
     def worker():
         try:
             def _log(m: str):
                 _append_task_log(task_id, m)
 
-            res = _run_people_search_orchestration(body, log_fn=_log)
+            res = _run_people_search_orchestration(body, log_fn=_log, user_id=user_id)
             TASKS[task_id]["result"] = res
             TASKS[task_id]["status"] = "finished" if res.get('ok') else "failed"
             _append_task_log(task_id, f"Orchestrator finished: ok={res.get('ok', False)} source={res.get('source') or res.get('reason')}")

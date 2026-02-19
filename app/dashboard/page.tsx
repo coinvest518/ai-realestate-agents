@@ -1,13 +1,15 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel"
-import { Check, X, Loader2, AlertCircle, UserSearch, Building2 } from "lucide-react"
+import { Check, X, Loader2, AlertCircle, UserSearch, Building2, LogIn } from "lucide-react"
 import ChatPanel from "@/components/chat-panel"
+import { useAuth } from "@/components/auth-provider"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -50,6 +52,10 @@ async function pollTask(taskId: string): Promise<BrowserActTask> {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const { user, loading } = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [usageCount, setUsageCount] = useState(0)
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
   const [envLoading, setEnvLoading] = useState(true)
   const [scrapeUrl, setScrapeUrl] = useState("")
@@ -64,9 +70,66 @@ export default function DashboardPage() {
   const [peopleResult, setPeopleResult] = useState<BrowserActTask | null>(null)
   const [peopleError, setPeopleError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (user) {
+      fetchUsageCount()
+    }
+  }, [user])
+
+  const fetchUsageCount = async () => {
+    if (!user) return
+    try {
+      const res = await fetch(`${API_BASE}/api/usage/searches`, {
+        headers: { "x-user-id": user.id }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUsageCount(data.data?.count || 0)
+      }
+    } catch (e) {
+      console.error("Failed to fetch usage:", e)
+    }
+  }
+
+  const checkAuth = () => {
+    if (user) return true
+
+    // Allow one free use for unauthenticated visitors.
+    if (typeof window !== "undefined") {
+      try {
+        const used = localStorage.getItem("agent_scrape_free_used")
+        if (!used) {
+          localStorage.setItem("agent_scrape_free_used", "1")
+          return true
+        }
+      } catch {}
+    }
+
+    setShowAuthModal(true)
+    return false
+  }
+
+  const trackUsage = async (type: string) => {
+    if (!user) return
+    try {
+      await fetch(`${API_BASE}/api/usage/track`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-id": user.id 
+        },
+        body: JSON.stringify({ type })
+      })
+      await fetchUsageCount()
+    } catch (e) {
+      console.error("Failed to track usage:", e)
+    }
+  }
+
 
 
   async function runScrape() {
+    if (!checkAuth()) return
     if (!scrapeUrl.trim()) return
     setScraping(true)
     setResult(null)
@@ -80,7 +143,6 @@ export default function DashboardPage() {
         body: JSON.stringify({ url: scrapeUrl.trim() }),
       })
       if (!startRes.ok) {
-        // fallback to synchronous endpoint
         const res = await fetch(`${API_BASE}/api/scrape`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -88,6 +150,7 @@ export default function DashboardPage() {
         })
         const data = await res.json()
         setResult(data)
+        if (user) await trackUsage("scrape")
         return
       }
 
@@ -106,7 +169,6 @@ export default function DashboardPage() {
       es.addEventListener("done", (ev: MessageEvent) => {
         try {
           const payload = JSON.parse(ev.data)
-          const status = payload.status
           const resultObj = payload.result || null
           if (resultObj && resultObj.success) {
             setResult(resultObj)
@@ -118,10 +180,10 @@ export default function DashboardPage() {
         } finally {
           es.close()
           setScraping(false)
+          if (user) trackUsage("scrape")
         }
       })
       es.onerror = (err) => {
-        // mark error and close
         setScrapingLogs((prev) => [...prev, `SSE error: ${String(err)}`])
         es.close()
         setScraping(false)
@@ -133,6 +195,7 @@ export default function DashboardPage() {
   }
 
   async function runPeopleSearch(name?: string, limit?: number) {
+    if (!checkAuth()) return
     const n = (name ?? peopleName).trim()
     const l = limit ?? dataLimit
     if (!n) return
@@ -189,6 +252,7 @@ export default function DashboardPage() {
               status: "finished",
               output: { string: formatted || "No results found" }
             })
+            if (user) trackUsage("people_search")
           } else {
             setPeopleError(resultObj?.error || "Task failed")
           }
@@ -587,6 +651,41 @@ export default function DashboardPage() {
           <ChatPanel />
         </section>
       </div>
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LogIn className="size-5" />
+                Sign in to continue
+              </CardTitle>
+              <CardDescription>
+                {usageCount > 0 
+                  ? "You've used your free trial. Sign in to upgrade and continue."
+                  : "Create an account to save your searches and access premium features."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button className="w-full" onClick={() => router.push("/auth/signup")}>
+                Create Account
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => router.push("/auth/signin")}>
+                Sign In
+              </Button>
+              {(usageCount > 0 || (!user && typeof window !== 'undefined' && localStorage.getItem('agent_scrape_free_used'))) && (
+                <Button variant="default" className="w-full bg-green-600 hover:bg-green-700" onClick={() => router.push("/upgrade")}>
+                  Upgrade Now
+                </Button>
+              )}
+              <Button variant="ghost" className="w-full" onClick={() => setShowAuthModal(false)}>
+                Cancel
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </main>
   )
 }

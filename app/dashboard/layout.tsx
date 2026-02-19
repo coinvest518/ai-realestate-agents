@@ -1,5 +1,3 @@
-"use client"
-
 import Link from "next/link"
 import {
   Sidebar,
@@ -16,13 +14,16 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Home, LayoutDashboard, Building2, UserSearch, MessageCircle, Settings } from "lucide-react"
+import { Home, LayoutDashboard, Building2, UserSearch, MessageCircle, Settings, History } from "lucide-react"
+import { UserMenu } from "@/components/user-menu"
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Allow unauthenticated users to view the dashboard for the initial free-use
+  // The app's client-side will track usage and prompt sign-in after the first use.
   return (
     <SidebarProvider defaultOpen={true}>
       <Sidebar side="left" variant="inset" collapsible="icon" className="border-r border-sidebar-border">
@@ -74,10 +75,25 @@ export default function DashboardLayout({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="History">
+                    <Link href="/dashboard/history">
+                      <History className="size-5" />
+                      <span>History</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Market">
+                    <Link href="/market">
+                      <Building2 className="size-5" />
+                      <span>Market</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Settings">
-                    <Link href="/dashboard/settings">
+                    <Link href="/settings/integrations">
                       <Settings className="size-5" />
                       <span>Settings</span>
                     </Link>
@@ -107,6 +123,7 @@ export default function DashboardLayout({
             <h1 className="text-lg font-semibold truncate md:text-xl text-foreground">Dashboard</h1>
             <p className="text-xs text-muted-foreground truncate md:text-sm">Property data, people search & chat</p>
           </div>
+          <UserMenu />
         </header>
         <div className="flex-1 min-h-0">
           {children}

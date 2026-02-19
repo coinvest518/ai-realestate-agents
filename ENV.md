@@ -20,6 +20,11 @@ Use a `.env` file in the **project root** (same folder as `package.json`). Both 
 | `NEXT_PUBLIC_API_BASE` | Backend URL for the dashboard (e.g. `http://localhost:8000`). |
 | `DATABASE_URL` | PostgreSQL connection string (e.g. Supabase). |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | For future Supabase features. |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key for client-side redirects (e.g. `pk_live_...`). |
+| `STRIPE_SECRET_KEY` | Stripe secret key for server-side operations (e.g. `sk_live_...`). |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret for validating events. |
+| `STRIPE_PRICE_PRO_ID`, `STRIPE_PRICE_ENTERPRISE_ID` | (Optional) Pre-created Stripe Price IDs to use for subscriptions (recommended). |
+| `STRIPE_PRO_PRODUCT_ID`, `STRIPE_ENTERPRISE_PRODUCT_ID` | (Optional) Stripe Product IDs (prod_...); backend can create a Price on-the-fly from these. Example: `prod_U0ccioBcpVi6DL` (Pro), `prod_U0cdTpv4RroGFK` (Enterprise). |
 | `BRIGHT_DATA_REALTOR_DATASET_ID` | (Optional) Bright Data Marketplace dataset id for Realtor data; used when pulling Realtor listings from Bright Data marketplace. |
 
 ## Connection checklist

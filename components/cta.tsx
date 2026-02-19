@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
 export function CTA() {
@@ -17,10 +18,12 @@ export function CTA() {
               Start with 1,000 free scrapes. No credit card required. Get structured agent data in under a minute.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                Get Started Free
-                <ArrowRight className="size-4" />
-              </Button>
+              <Link href="/dashboard">
+                <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  Get Started Free
+                  <ArrowRight className="size-4" />
+                </Button>
+              </Link>
               <Button variant="outline" size="lg" className="border-border text-foreground hover:bg-secondary">
                 Talk to Sales
               </Button>

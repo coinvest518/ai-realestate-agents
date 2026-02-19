@@ -26,15 +26,9 @@ export function Navbar() {
           <a href="/#how-it-works" className="text-sm lg:text-base text-muted-foreground transition-colors hover:text-foreground">How It Works</a>
           <a href="/#pricing" className="text-sm lg:text-base text-muted-foreground transition-colors hover:text-foreground">Pricing</a>
           <a href="/#testimonials" className="text-sm lg:text-base text-muted-foreground transition-colors hover:text-foreground">Testimonials</a>
-          <Link href="/dashboard" className="text-sm lg:text-base text-muted-foreground transition-colors hover:text-foreground">
-            Dashboard
-          </Link>
         </div>
 
         <div className="hidden items-center gap-3 lg:gap-4 md:flex">
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-sm lg:text-base" asChild>
-            <Link href="/dashboard">Dashboard</Link>
-          </Button>
           <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-sm lg:text-base px-4 lg:px-5" asChild>
             <Link href="/dashboard">Get Started Free</Link>
           </Button>
@@ -58,11 +52,7 @@ export function Navbar() {
             <a href="/#how-it-works" className="text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>How It Works</a>
             <a href="/#pricing" className="text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>Pricing</a>
             <a href="/#testimonials" className="text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>Testimonials</a>
-            <Link href="/dashboard" className="text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>Dashboard</Link>
             <div className="flex flex-col gap-2 pt-2">
-              <Button variant="ghost" size="sm" className="justify-start text-muted-foreground" asChild>
-                <Link href="/dashboard">Dashboard</Link>
-              </Button>
               <Button size="sm" className="bg-primary text-primary-foreground" asChild>
                 <Link href="/dashboard">Get Started Free</Link>
               </Button>

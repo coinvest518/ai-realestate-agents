@@ -1,6 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Check } from "lucide-react"
@@ -58,7 +61,44 @@ const plans = [
 ]
 
 export function Pricing() {
-  const [annual, setAnnual] = useState(true)
+  const router = useRouter()
+  const { user } = useAuth()
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""
+
+  const handleCheckout = async (planKey: string) => {
+    if (!user) {
+      toast.error('Please sign in to purchase')
+      router.push('/auth/login')
+      return
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/stripe/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({ plan: planKey }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || data.error || 'Checkout creation failed')
+
+      // If backend returns a Stripe-hosted URL, redirect there.
+      if (data.url) {
+        window.location.href = data.url
+      } else if (data.session_id) {
+        // fallback: use Stripe.js redirect if available
+        const stripePublic = (await import('@stripe/stripe-js')).loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+        const stripe = await stripePublic
+        await stripe?.redirectToCheckout({ sessionId: data.session_id })
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Checkout failed')
+    }
+  }
 
   return (
     <section id="pricing" className="border-t border-border/50 py-24 lg:py-32">
@@ -74,30 +114,7 @@ export function Pricing() {
             Start free and scale as your needs grow. No hidden fees.
           </p>
 
-          {/* Billing toggle */}
-          <div className="mt-8 inline-flex items-center gap-3 rounded-lg border border-border bg-card p-1">
-            <button
-              onClick={() => setAnnual(false)}
-              className={cn(
-                "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                !annual ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              className={cn(
-                "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                annual ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Annual
-              <Badge variant="outline" className="ml-2 border-primary/30 text-primary text-[10px]">
-                Save 25%
-              </Badge>
-            </button>
-          </div>
+
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -119,9 +136,7 @@ export function Pricing() {
               <h3 className="text-xl font-semibold text-foreground">{plan.name}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{plan.desc}</p>
               <div className="mt-6 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-foreground">
-                  ${annual ? plan.yearly : plan.monthly}
-                </span>
+                <span className="text-4xl font-bold text-foreground">${plan.monthly}</span>
                 {plan.monthly > 0 && (
                   <span className="text-sm text-muted-foreground">/ month</span>
                 )}
@@ -144,6 +159,14 @@ export function Pricing() {
                     : "border-border bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 )}
                 variant={plan.popular ? "default" : "outline"}
+                onClick={() => {
+                  const key = plan.name.toLowerCase()
+                  if (key === 'starter') return router.push('/dashboard')
+                  if (key === 'pro') return handleCheckout('pro')
+                  // enterprise -> direct purchase (requires sign in)
+                  if (key === 'enterprise') return handleCheckout('enterprise')
+                  return null
+                }}
               >
                 {plan.cta}
               </Button>

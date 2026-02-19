@@ -1,11 +1,7 @@
-export function Footer() {
-  const links = {
-    Product: ["Features", "Pricing", "API Docs", "Changelog", "Status"],
-    Resources: ["Documentation", "Blog", "Guides", "Community", "Support"],
-    Company: ["About", "Careers", "Contact", "Privacy", "Terms"],
-    Integrations: ["Salesforce", "HubSpot", "Zapier", "Webhooks", "REST API"],
-  }
+import Link from "next/link"
+import { CONTACT_EMAIL, INTEGRATIONS, AI_TOOLS, DIGITAL_PRODUCTS, COMPANY_LINKS, OTHER_AFFILIATES } from "@/lib/resources"
 
+export function Footer() {
   return (
     <footer className="border-t border-border/50 bg-secondary/20" suppressHydrationWarning>
       <div className="mx-auto w-full max-w-[1600px] px-6 sm:px-8 lg:px-10 xl:px-12 py-16 lg:py-20">
@@ -21,34 +17,76 @@ export function Footer() {
               <span className="text-lg font-semibold text-foreground">AgentScrape</span>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              AI-powered real estate agent data extraction. Turn any website into structured intelligence.
+              AI-powered real estate agent data extraction.
             </p>
+            <p className="mt-3 text-sm text-muted-foreground">Contact: <a href={`mailto:${CONTACT_EMAIL}`} className="text-foreground underline">{CONTACT_EMAIL}</a></p>
           </div>
 
-          {Object.entries(links).map(([category, items]) => (
-            <div key={category}>
-              <h3 className="mb-4 text-sm font-semibold text-foreground">{category}</h3>
-              <ul className="flex flex-col gap-3">
-                {items.map((item) => (
-                  <li key={item}>
-                    <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                      {item}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+
+          <div>
+            <h3 className="mb-4 text-sm font-semibold text-foreground">Integrations</h3>
+            <ul className="flex flex-col gap-3">
+              {INTEGRATIONS.map((r) => (
+                <li key={r.url}>
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-sm text-muted-foreground hover:text-foreground">{r.name}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+
+          <div>
+            <h3 className="mb-4 text-sm font-semibold text-foreground">AI & Automation Tools</h3>
+            <ul className="flex flex-col gap-3">
+              {AI_TOOLS.map((r) => (
+                <li key={r.url}>
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-sm text-muted-foreground hover:text-foreground">{r.name}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+
+
+          <div>
+            <h3 className="mb-4 text-sm font-semibold text-foreground">Digital products & membership</h3>
+            <ul className="flex flex-col gap-3 mb-3">
+              {DIGITAL_PRODUCTS.map((r) => (
+                <li key={r.url}>
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-sm text-muted-foreground hover:text-foreground">{r.name}</a>
+                </li>
+              ))}
+            </ul>
+
+            <h3 className="mb-3 mt-2 text-sm font-semibold text-foreground">Affiliates</h3>
+            <ul className="flex flex-col gap-3">
+              {OTHER_AFFILIATES.map((r) => (
+                <li key={r.url}>
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-sm text-muted-foreground hover:text-foreground">{r.name}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+
+          <div>
+            <h3 className="mb-4 text-sm font-semibold text-foreground">Company</h3>
+            <ul className="flex flex-col gap-3">
+              {COMPANY_LINKS.map((r) => (
+                <li key={r.url}><a href={r.url} target="_blank" rel="noreferrer" className="text-sm text-muted-foreground hover:text-foreground">{r.name}</a></li>
+              ))}
+              <li><Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground">Privacy</Link></li>
+              <li><Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground">Terms</Link></li>
+            </ul>
+          </div>
         </div>
 
         <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-8 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
-            2026 AgentScrape. All rights reserved.
-          </p>
+          <p className="text-sm text-muted-foreground">© 2026 AgentScrape. All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Privacy</a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Terms</a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Cookies</a>
+            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground">Privacy</Link>
+            <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground">Terms</Link>
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-sm text-muted-foreground hover:text-foreground">Contact</a>
           </div>
         </div>
       </div>
